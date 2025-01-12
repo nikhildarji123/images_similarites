@@ -26,9 +26,7 @@ def resize_and_align(image):
 
 # Check if the image is valid (8-bit grayscale or RGB)
 def is_valid_image(image):
-    if image is None:
-        return False
-    if image.dtype != np.uint8:
+    if image is None or image.dtype != np.uint8:
         return False
     if len(image.shape) not in [2, 3]:
         return False
@@ -36,9 +34,11 @@ def is_valid_image(image):
         return False
     return True
 
-# Compute feature-wise similarity using Euclidean distance
+# Compute feature-wise similarity using Euclidean distance with normalization
 def compute_feature_similarity(feature1, feature2):
-    return np.linalg.norm(feature1 - feature2)
+    feature1_normalized = feature1 / np.linalg.norm(feature1) if np.linalg.norm(feature1) != 0 else feature1
+    feature2_normalized = feature2 / np.linalg.norm(feature2) if np.linalg.norm(feature2) != 0 else feature2
+    return np.linalg.norm(feature1_normalized - feature2_normalized)
 
 # Visualize features by drawing rectangles around detected faces
 def visualize_features(image, face_locations, output_path):
@@ -48,12 +48,13 @@ def visualize_features(image, face_locations, output_path):
 
 # Extract facial features based on landmarks (using face_recognition)
 def extract_features(face_landmarks):
-    features = {}
-    features['eyes'] = np.array([face_landmarks['left_eye'], face_landmarks['right_eye']])
-    features['nose'] = np.array(face_landmarks['nose_bridge'])
-    features['mouth'] = np.array(face_landmarks['top_lip'] + face_landmarks['bottom_lip'])
-    features['jawline'] = np.array(face_landmarks['chin'])
-    
+    features = {
+        'eyes': np.array([face_landmarks['left_eye'], face_landmarks['right_eye']]),
+        'nose': np.array(face_landmarks['nose_bridge']),
+        'mouth': np.array(face_landmarks['top_lip'] + face_landmarks['bottom_lip']),
+        'jawline': np.array(face_landmarks['chin']),
+        'eyebrows': np.array([face_landmarks['left_eyebrow'], face_landmarks['right_eyebrow']])
+    }
     return features
 
 @app.route("/", methods=["GET"])
@@ -66,7 +67,7 @@ def upload():
         # Get uploaded files
         file1 = request.files["image1"]
         file2 = request.files["image2"]
-        
+
         # Save files temporarily
         file1_path = os.path.join(app.config["UPLOAD_FOLDER"], file1.filename)
         file2_path = os.path.join(app.config["UPLOAD_FOLDER"], file2.filename)
@@ -81,7 +82,7 @@ def upload():
         img1_resized = resize_and_align(img1)
         img2_resized = resize_and_align(img2)
 
-        # Check if images are valid before processing further
+        # Validate images before processing further
         if not is_valid_image(img1_resized) or not is_valid_image(img2_resized):
             raise ValueError("One or both uploaded files are not valid images.")
 
@@ -95,28 +96,33 @@ def upload():
         if len(encodings1) == 0 or len(encodings2) == 0:
             raise ValueError("No faces found in one or both images.")
 
-        # Extract facial features from landmarks
-        features1 = extract_features(landmarks1[0])  # Assuming one face per image
+        # Extract facial features from landmarks (assuming one face per image)
+        features1 = extract_features(landmarks1[0])
         features2 = extract_features(landmarks2[0])
 
-        # Compute feature-wise similarities
-        feature_similarities = {}
-        for feature in ['eyes', 'nose', 'mouth', 'jawline']:
-            similarity_score = compute_feature_similarity(features1[feature], features2[feature])
-            feature_similarities[feature] = round(similarity_score, 4)  # Round for better readability
+        # Compute weighted feature-wise similarities
+        weights = {
+            'eyes': 0.4,
+            'nose': 0.3,
+            'mouth': 0.2,
+            'jawline': 0.1,
+            'eyebrows': 0.05,
+        }
+
+        weighted_similarity_score = sum(weights[feature] * compute_feature_similarity(features1[feature], features2[feature]) for feature in weights)
 
         # Overall similarity based on encodings
         overall_similarity = compute_feature_similarity(encodings1[0], encodings2[0])
-        
+
         # Visualize features (bounding boxes around detected faces)
         face_locations1 = face_recognition.face_locations(img1_resized)
         face_locations2 = face_recognition.face_locations(img2_resized)
 
-        output1 = os.path.join(app.config["OUTPUT_FOLDER"], "annotated1.jpg")
-        output2 = os.path.join(app.config["OUTPUT_FOLDER"], "annotated2.jpg")
-        
-        visualize_features(img1_resized.copy(), face_locations1, output1)
-        visualize_features(img2_resized.copy(), face_locations2, output2)
+        output1_path = os.path.join(app.config["OUTPUT_FOLDER"], "annotated1.jpg")
+        output2_path = os.path.join(app.config["OUTPUT_FOLDER"], "annotated2.jpg")
+
+        visualize_features(img1_resized.copy(), face_locations1, output1_path)
+        visualize_features(img2_resized.copy(), face_locations2, output2_path)
 
         similarity_score_percentage = max(0, 100 * (1 - (overall_similarity / 0.6)))  # Adjust threshold as needed
 
@@ -124,7 +130,7 @@ def upload():
         if similarity_score_percentage >= 85:
             similarity_result = "Faces are highly similar."
         elif similarity_score_percentage >= 50:
-            similarity_result = "Faces are simlar."
+            similarity_result = "Faces are similar."
         elif similarity_score_percentage >= 30:
             similarity_result = "Faces are moderately similar."
         else:
@@ -137,9 +143,10 @@ def upload():
             "annotated2": "annotated2.jpg",
             "accuracy": round(similarity_score_percentage, 2),
             "overall_similarity": round(overall_similarity, 4),
-            "feature_similarities": feature_similarities,
+            "weighted_similarity": round(weighted_similarity_score * 100, 4),  # Convert to percentage for readability
+            "feature_similarities": {feature: round(compute_feature_similarity(features1[feature], features2[feature]), 4) for feature in weights},
         }
-        
+
         return jsonify(response)
 
     except Exception as e:
