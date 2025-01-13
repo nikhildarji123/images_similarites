@@ -7,7 +7,7 @@
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f4f4f9;
+            background: linear-gradient(to right, #e3ffe7, #d9e7ff);
             color: #333;
             margin: 0;
             padding: 0;
@@ -16,17 +16,18 @@
         h1 {
             text-align: center;
             margin-top: 40px;
-            font-size: 2.5rem;
-            color: #4CAF50;
+            font-size: 3rem;
+            color: #2c7a7b;
+            text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.2);
         }
     
         .container {
             max-width: 800px;
             margin: 30px auto;
-            background-color: #ffffff;
+            background: #ffffff;
             padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            border-radius: 12px;
+            box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
         }
     
         form {
@@ -36,87 +37,132 @@
         }
     
         label {
-            font-size: 1rem;
-            color: #333;
+            font-size: 1.2rem;
+            color: #555;
             font-weight: bold;
+            display: block;
+            margin-bottom: 8px;
         }
     
         input[type="file"] {
             font-size: 1rem;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
+            padding: 12px;
+            border: 2px dashed #ddd;
+            border-radius: 8px;
             background-color: #f9f9f9;
-            transition: border 0.3s;
+            outline: none;
+            transition: border-color 0.3s, background-color 0.3s;
         }
     
-        input[type="file"]:hover {
-            border-color: #4CAF50;
+        input[type="file"]:hover, input[type="file"]:focus {
+            border-color: #2c7a7b;
+            background-color: #e6fffa;
         }
     
         button {
-            padding: 12px 20px;
-            background-color: #4CAF50;
+            padding: 15px 25px;
+            background: #2c7a7b;
             color: white;
             border: none;
-            border-radius: 4px;
-            font-size: 1.1rem;
+            border-radius: 8px;
+            font-size: 1.2rem;
             cursor: pointer;
-            transition: background-color 0.3s;
+            transition: background-color 0.3s, transform 0.2s;
         }
     
         button:hover {
-            background-color: #45a049;
+            background-color: #285e61;
+            transform: translateY(-3px);
+            box-shadow: 0 5px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        button:active {
+            transform: translateY(0);
+            box-shadow: none;
         }
     
-       .results {
-           margin-top: 30px; 
-       }
+        .results {
+            margin-top: 40px;
+            padding: 20px;
+            background: #f7fafc;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
 
-       .error {
-          color:red; 
-          font-weight:bold; 
-       }
-       
-       ul {
-           list-style-type:none; 
-           padding-left:0; 
-       }
+        .error {
+            color: red;
+            font-weight: bold;
+        }
+        
+        ul {
+            list-style-type: none;
+            padding-left: 0;
+        }
 
-       ul li {
-           font-size:1rem; 
-           margin-bottom:8px; 
-       }
+        ul li {
+            font-size: 1.1rem;
+            margin-bottom: 10px;
+        }
 
-       ul li::before {
-           content:'• '; 
-           color:#4CAF50; 
-       }
+        ul li::before {
+            content: '✔';
+            color: #2c7a7b;
+            margin-right: 8px;
+        }
 
-       #images {
-           display:flex; 
-           gap:20px; 
-           justify-content:center; 
-       }
+        #images {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin-top: 20px;
+        }
 
-       #images img {
-           max-width:45%; 
-           border-radius:8px; 
-           box-shadow:0 4px 6px rgba(0 ,0 ,0 ,0.1); 
-       }
-       
-   </style>
+        #images img {
+            max-width: 45%;
+            border-radius: 12px;
+            box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
+            transition: transform 0.3s;
+        }
+
+        #images img:hover {
+            transform: scale(1.05);
+        }
+        #image img, #preview1, #preview2 {
+            max-width: 150px;
+            height: auto;
+            border-radius: 12px;
+            border: 2px solid #2c7a7b;
+            box-shadow: 0.8px 15px rgba(0, 0, 0, 0.2);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        #images img:hover, #preview1:hover, #preview2:hover {
+        transform: scale(1.1); /* Slight zoom on hover */
+        box-shadow: 0 12px 20px rgba(0, 0, 0, 0.3); /* More prominent shadow */
+    }
+
+    /* Responsive styling for previews */
+    @media (max-width: 768px) {
+        #images img, #preview1, #preview2 {
+            max-width: 100px; /* Reduce size on smaller screens */
+        }
+    }
+    </style>
 </head>
 <body>
    <div class="container">
        <h1>Facial Similarity Analysis</h1>
        <form id="uploadForm" enctype="multipart/form-data">
-           <label for="image1">Select First Image:</label>
-           <input type="file" id="image1" name="image1" accept="image/*" required><br><br>
-           
-           <label for="image2">Select Second Image:</label>
-           <input type="file" id="image2" name="image2" accept="image/*" required><br><br>
-           
+            <label for="image1">Select First Image:</label>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <input type="file" id="image1" name="image1" accept="image/*" required>
+                <img id="preview1" alt="Preview 1" style="max-width: 100px; height: auto; border: 1px solid #ccc; border-radius: 8px; display: none;">
+            </div>
+            
+            <label for="image2">Select Second Image:</label>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <input type="file" id="image2" name="image2" accept="image/*" required>
+                <img id="preview2" alt="Preview 2" style="max-width: 100px; height: auto; border: 1px solid #ccc; border-radius: 8px; display: none;">
+            </div>
            <button type="submit">Analyze</button>
        </form>
        
@@ -128,6 +174,27 @@
    </div>
 
    <script>
+         const showImagePreviewInline = (inputId, previewId) => {
+        const input = document.getElementById(inputId);
+        const preview = document.getElementById(previewId);
+
+        input.addEventListener("change", () => {
+            const file = input.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    preview.src = e.target.result; // Set the preview image source
+                    preview.style.display = "block"; // Make the image visible
+                };
+                reader.readAsDataURL(file);
+            } else {
+                preview.style.display = "none"; // Hide preview if no file is selected
+            }
+        });
+    };
+
+    showImagePreviewInline("image1", "preview1");
+    showImagePreviewInline("image2", "preview2");
        document.getElementById("uploadForm").onsubmit = async (e) => {
            e.preventDefault();
            const formData = new FormData(e.target);
