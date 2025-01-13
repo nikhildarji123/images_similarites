@@ -40,6 +40,15 @@ def compute_feature_similarity(feature1, feature2):
     feature2_normalized = feature2 / np.linalg.norm(feature2) if np.linalg.norm(feature2) != 0 else feature2
     return np.linalg.norm(feature1_normalized - feature2_normalized)
 
+# Normalize feature similarity to range [0, 1]
+def normalize_similarity(computed_distance, min_distance, max_distance):
+    if computed_distance < min_distance:
+        return 1.0
+    elif computed_distance > max_distance:
+        return 0.0
+    else:
+        return (max_distance - computed_distance) / (max_distance - min_distance)
+
 # Visualize features by drawing rectangles around detected faces
 def visualize_features(image, face_locations, output_path):
     for (top, right, bottom, left) in face_locations:
@@ -100,7 +109,7 @@ def upload():
         features1 = extract_features(landmarks1[0])
         features2 = extract_features(landmarks2[0])
 
-        # Compute weighted feature-wise similarities
+        # Compute weighted feature-wise similarities with normalization
         weights = {
             'eyes': 0.4,
             'nose': 0.3,
@@ -109,9 +118,20 @@ def upload():
             'eyebrows': 0.05,
         }
 
-        weighted_similarity_score = sum(weights[feature] * compute_feature_similarity(features1[feature], features2[feature]) for feature in weights)
+        feature_similarity_scores = {}
+        
+        for feature in weights:
+            computed_distance = compute_feature_similarity(features1[feature], features2[feature])
+            # Define min and max distances for normalization based on empirical observations
+            min_distance = 0.0
+            max_distance = 0.5
+            
+            normalized_score = normalize_similarity(computed_distance, min_distance, max_distance)
+            feature_similarity_scores[feature] = round(normalized_score, 4)
 
-        # Overall similarity based on encodings
+            # Weighted similarity score calculation can be adjusted here if needed
+
+        # Overall similarity based on encodings (not normalized here)
         overall_similarity = compute_feature_similarity(encodings1[0], encodings2[0])
 
         # Visualize features (bounding boxes around detected faces)
@@ -136,15 +156,14 @@ def upload():
         else:
             similarity_result = "Faces are not similar."
 
-        # Prepare response with detailed results
+         # Prepare response with detailed results including normalized feature similarities
         response = {
-            "similarity_result": similarity_result,
-            "annotated1": "annotated1.jpg",
-            "annotated2": "annotated2.jpg",
-            "accuracy": round(similarity_score_percentage, 2),
-            "overall_similarity": round(overall_similarity, 4),
-            "weighted_similarity": round(weighted_similarity_score * 100, 4),  # Convert to percentage for readability
-            "feature_similarities": {feature: round(compute_feature_similarity(features1[feature], features2[feature]), 4) for feature in weights},
+             "similarity_result": similarity_result,
+             "annotated1": "annotated1.jpg",
+             "annotated2": "annotated2.jpg",
+             "accuracy": round(similarity_score_percentage, 2),
+             "overall_similarity": round(overall_similarity, 4),
+             "feature_similarities": feature_similarity_scores,
         }
 
         return jsonify(response)
@@ -156,10 +175,10 @@ def upload():
 @app.route("/outputs/<filename>")
 def outputs(filename):
     try:
-       return send_from_directory(app.config["OUTPUT_FOLDER"], filename)
+        return send_from_directory(app.config["OUTPUT_FOLDER"], filename)
     except Exception as e:
-       print(f"Error in outputs route: {str(e)}")
-       return jsonify({"error": str(e)}), 400
+        print(f"Error in outputs route: {str(e)}")
+        return jsonify({"error": str(e)}), 400
 
 if __name__ == "__main__":
-   app.run(debug=True)
+    app.run(debug=True)
