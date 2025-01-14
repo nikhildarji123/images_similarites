@@ -1,18 +1,25 @@
-from flask import Flask, render_template, request, jsonify, send_from_directory
+from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 import cv2
 import face_recognition
 import numpy as np
 import os
+from fastapi import Request
 
-# Initialize Flask app
-app = Flask(__name__)
+# Initialize FastAPI app
+app = FastAPI()
 UPLOAD_FOLDER = "./uploads"
 OUTPUT_FOLDER = "./outputs"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
-app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
-app.config["OUTPUT_FOLDER"] = OUTPUT_FOLDER
+# Set up Jinja2 templates
+templates = Jinja2Templates(directory="templates")
+
+# Serve static files for outputs
+app.mount("/outputs", StaticFiles(directory=OUTPUT_FOLDER), name="outputs")
 
 # Standardize and resize image while maintaining aspect ratio
 def resize_and_align(image):
@@ -66,22 +73,22 @@ def extract_features(face_landmarks):
     }
     return features
 
-@app.route("/", methods=["GET"])
-def index():
-    return render_template("index.html")
+@app.get("/", response_class=HTMLResponse)
+async def index(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
 
-@app.route("/upload", methods=["POST"])
-def upload():
+@app.post("/upload")
+async def upload(image1: UploadFile = File(...), image2: UploadFile = File(...)):
     try:
-        # Get uploaded files
-        file1 = request.files["image1"]
-        file2 = request.files["image2"]
-
         # Save files temporarily
-        file1_path = os.path.join(app.config["UPLOAD_FOLDER"], file1.filename)
-        file2_path = os.path.join(app.config["UPLOAD_FOLDER"], file2.filename)
-        file1.save(file1_path)
-        file2.save(file2_path)
+        file1_path = os.path.join(UPLOAD_FOLDER, image1.filename)
+        file2_path = os.path.join(UPLOAD_FOLDER, image2.filename)
+        
+        with open(file1_path, "wb") as buffer:
+            buffer.write(await image1.read())
+        
+        with open(file2_path, "wb") as buffer:
+            buffer.write(await image2.read())
 
         # Read and process images
         img1 = face_recognition.load_image_file(file1_path)
@@ -122,14 +129,11 @@ def upload():
         
         for feature in weights:
             computed_distance = compute_feature_similarity(features1[feature], features2[feature])
-            # Define min and max distances for normalization based on empirical observations
             min_distance = 0.0
             max_distance = 0.5
             
             normalized_score = normalize_similarity(computed_distance, min_distance, max_distance)
             feature_similarity_scores[feature] = round(normalized_score, 4)
-
-            # Weighted similarity score calculation can be adjusted here if needed
 
         # Overall similarity based on encodings (not normalized here)
         overall_similarity = compute_feature_similarity(encodings1[0], encodings2[0])
@@ -138,8 +142,8 @@ def upload():
         face_locations1 = face_recognition.face_locations(img1_resized)
         face_locations2 = face_recognition.face_locations(img2_resized)
 
-        output1_path = os.path.join(app.config["OUTPUT_FOLDER"], "annotated1.jpg")
-        output2_path = os.path.join(app.config["OUTPUT_FOLDER"], "annotated2.jpg")
+        output1_path = os.path.join(OUTPUT_FOLDER, "annotated1.jpg")
+        output2_path = os.path.join(OUTPUT_FOLDER, "annotated2.jpg")
 
         visualize_features(img1_resized.copy(), face_locations1, output1_path)
         visualize_features(img2_resized.copy(), face_locations2, output2_path)
@@ -157,28 +161,22 @@ def upload():
             similarity_result = "Faces are not similar."
 
          # Prepare response with detailed results including normalized feature similarities
-        response = {
-             "similarity_result": similarity_result,
-             "annotated1": "annotated1.jpg",
-             "annotated2": "annotated2.jpg",
-             "accuracy": round(similarity_score_percentage, 2),
-             "overall_similarity": round(overall_similarity, 4),
-             "feature_similarities": feature_similarity_scores,
+        response_data = {
+            "similarity_result": similarity_result,
+            "annotated1": "annotated1.jpg",
+            "annotated2": "annotated2.jpg",
+            "accuracy": round(similarity_score_percentage, 2),
+            "overall_similarity": round(overall_similarity, 4),
+            "feature_similarities": feature_similarity_scores,
         }
 
-        return jsonify(response)
+        return JSONResponse(content=response_data)
 
     except Exception as e:
         print(f"Error in upload route: {str(e)}")
-        return jsonify({"error": str(e)}), 400
-
-@app.route("/outputs/<filename>")
-def outputs(filename):
-    try:
-        return send_from_directory(app.config["OUTPUT_FOLDER"], filename)
-    except Exception as e:
-        print(f"Error in outputs route: {str(e)}")
-        return jsonify({"error": str(e)}), 400
+        raise HTTPException(status_code=400, detail=str(e))
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    import uvicorn
+    
+    uvicorn.run(app, host="127.0.0.1", port=8000)
