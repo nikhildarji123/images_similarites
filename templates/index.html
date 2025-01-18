@@ -4,58 +4,240 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Facial Similarity Analysis</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(to right, #e3ffe7, #d9e7ff);
+        color: #333;
+        margin: 0;
+        padding: 0;
+      }
+
+      h1 {
+        text-align: center;
+        margin-top: 40px;
+        font-size: 3rem;
+        color: #2c7a7b;
+        text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.2);
+      }
+
+      .container {
+        max-width: 800px;
+        margin: 30px auto;
+        background: #ffffff;
+        padding: 30px;
+        border-radius: 12px;
+        box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
+      }
+
+      form {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
+
+      label {
+        font-size: 1.2rem;
+        color: #555;
+        font-weight: bold;
+        display: block;
+        margin-bottom: 8px;
+      }
+
+      input[type="file"] {
+        font-size: 1rem;
+        padding: 12px;
+        border: 2px dashed #ddd;
+        border-radius: 8px;
+        background-color: #f9f9f9;
+        outline: none;
+        transition: border-color 0.3s, background-color 0.3s;
+      }
+
+      input[type="file"]:hover,
+      input[type="file"]:focus {
+        border-color: #2c7a7b;
+        background-color: #e6fffa;
+      }
+
+      button {
+        padding: 15px 25px;
+        background: #2c7a7b;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 1.2rem;
+        cursor: pointer;
+        transition: background-color 0.3s, transform 0.2s;
+      }
+
+      button:hover {
+        background-color: #285e61;
+        transform: translateY(-3px);
+        box-shadow: 0 5px 10px rgba(0, 0, 0, 0.2);
+      }
+
+      button:active {
+        transform: translateY(0);
+        box-shadow: none;
+      }
+
+      .results {
+        margin-top: 40px;
+        padding: 20px;
+        background: #f7fafc;
+        border-radius: 8px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      }
+
+      .error {
+        color: red;
+        font-weight: bold;
+      }
+
+      ul {
+        list-style-type: none;
+        padding-left: 0;
+      }
+
+      ul li {
+        font-size: 1.1rem;
+        margin-bottom: 10px;
+      }
+
+      ul li::before {
+        content: "✔";
+        color: #2c7a7b;
+        margin-right: 8px;
+      }
+
+      #images {
+        display: flex;
+        gap: 20px;
+        justify-content: center;
+        margin-top: 20px;
+      }
+
+      #images img {
+        max-width: 45%;
+        border-radius: 12px;
+        box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
+        transition: transform 0.3s;
+      }
+
+      #images img:hover {
+        transform: scale(1.05);
+      }
+      #image img,
+      #preview1,
+      #preview2 {
+        max-width: 150px;
+        height: auto;
+        border-radius: 12px;
+        border: 2px solid #2c7a7b;
+        box-shadow: 0.8px 15px rgba(0, 0, 0, 0.2);
+        transition: transform 0.3s, box-shadow 0.3s;
+      }
+      #images img:hover,
+      #preview1:hover,
+      #preview2:hover {
+        transform: scale(1.1); /* Slight zoom on hover */
+        box-shadow: 0 12px 20px rgba(0, 0, 0, 0.3); /* More prominent shadow */
+      }
+
+      /* Responsive styling for previews */
+      @media (max-width: 768px) {
+        #images img,
+        #preview1,
+        #preview2 {
+          max-width: 100px; /* Reduce size on smaller screens */
+        }
+      }
+    </style>
   </head>
-  <body class="bg-gray-100 font-sans">
-    <div class="max-w-4xl mx-auto mt-10 p-6 bg-white shadow-lg rounded-lg">
-      <h1 class="text-3xl font-bold text-center text-blue-500 mb-6">
-        Facial Similarity Analysis
-      </h1>
-      <form id="uploadForm" enctype="multipart/form-data" class="space-y-6">
-        <div class="flex flex-col">
-          <label for="image1" class="text-lg font-semibold text-gray-700"
-            >Select First Image:</label
-          >
+  <body>
+    <div class="container">
+      <h1>Facial Similarity Analysis</h1>
+      <form id="uploadForm" enctype="multipart/form-data">
+        <label for="image1">Select First Image:</label>
+        <div style="display: flex; align-items: center; gap: 10px">
           <input
             type="file"
             id="image1"
             name="image1"
             accept="image/*"
             required
-            class="mt-2 p-2 border rounded-lg border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
+          />
+          <img
+            id="preview1"
+            alt="Preview 1"
+            style="
+              max-width: 100px;
+              height: auto;
+              border: 1px solid #ccc;
+              border-radius: 8px;
+              display: none;
+            "
           />
         </div>
-        <div class="flex flex-col">
-          <label for="image2" class="text-lg font-semibold text-gray-700"
-            >Select Second Image:</label
-          >
+
+        <label for="image2">Select Second Image:</label>
+        <div style="display: flex; align-items: center; gap: 10px">
           <input
             type="file"
             id="image2"
             name="image2"
             accept="image/*"
             required
-            class="mt-2 p-2 border rounded-lg border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
+          />
+          <img
+            id="preview2"
+            alt="Preview 2"
+            style="
+              max-width: 100px;
+              height: auto;
+              border: 1px solid #ccc;
+              border-radius: 8px;
+              display: none;
+            "
           />
         </div>
-        <button
-          type="submit"
-          class="w-full py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-400 text-lg font-semibold"
-        >
-          Analyze
-        </button>
+        <button type="submit">Analyze</button>
       </form>
 
-      <div class="results mt-10">
-        <h2 class="text-2xl font-bold text-blue-500 text-center mb-4">
-          Results
-        </h2>
-        <div id="similarity" class="text-gray-700"></div>
-        <div id="images" class="flex flex-wrap justify-center gap-4 mt-4"></div>
+      <div class="results">
+        <h2>Results</h2>
+        <div id="similarity"></div>
+        <div id="images"></div>
       </div>
     </div>
 
     <script>
+      const similarityDiv = document.getElementById("similarity"); // Define similarityDiv
+      const imagesDiv = document.getElementById("images"); // Define imagesDiv
+
+      const showImagePreviewInline = (inputId, previewId) => {
+        const input = document.getElementById(inputId);
+        const preview = document.getElementById(previewId);
+
+        input.addEventListener("change", () => {
+          const file = input.files[0];
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+              preview.src = e.target.result; // Set the preview image source
+              preview.style.display = "block"; // Make the image visible
+            };
+            reader.readAsDataURL(file);
+          } else {
+            preview.style.display = "none"; // Hide preview if no file is selected
+          }
+        });
+      };
+
+      showImagePreviewInline("image1", "preview1");
+      showImagePreviewInline("image2", "preview2");
+
       document.getElementById("uploadForm").onsubmit = async (e) => {
         e.preventDefault();
         const formData = new FormData(e.target);
@@ -64,29 +246,26 @@
           body: formData,
         });
 
-        const similarityDiv = document.getElementById("similarity");
-        const imagesDiv = document.getElementById("images");
-
         if (response.ok) {
           const result = await response.json();
           similarityDiv.innerHTML = `
-                    <p><strong class='font-semibold'>Accuracy:</strong> ${
-                      result.accuracy
-                    }%</p>
-                    <p><strong class='font-semibold'>Similarity Result:</strong> ${
-                      result.similarity_result
-                    }</p>
-                    <p><strong class='font-semibold'>Feature-Wise Similarities:</strong></p>
-                    <ul class='list-disc list-inside'>${Object.entries(
-                      result.feature_similarities
-                    )
-                      .map(([k, v]) => `<li>${k}: ${v}</li>`)
-                      .join("")}</ul>
-                `;
+      <p><strong class='font-semibold'>Accuracy:</strong> ${
+        result.accuracy
+      }%</p>
+      <p><strong class='font-semibold'>Similarity Result:</strong> ${
+        result.similarity_result
+      }</p>
+      <p><strong class='font-semibold'>Feature-Wise Similarities:</strong></p>
+      <ul class='list-disc list-inside'>${Object.entries(
+        result.feature_similarities
+      )
+        .map(([k, v]) => `<li>${k}: ${v}</li>`)
+        .join("")}</ul>
+    `;
           imagesDiv.innerHTML = `
-                    <img src="/outputs/${result.annotated1}" alt="Annotated Image 1" class="w-1/2 rounded-lg shadow-md">
-                    <img src="/outputs/${result.annotated2}" alt="Annotated Image 2" class="w-1/2 rounded-lg shadow-md">
-                `;
+      <img src="/outputs/${result.annotated1}" alt="Annotated Image 1" class="w-1/2 rounded-lg shadow-md">
+      <img src="/outputs/${result.annotated2}" alt="Annotated Image 2" class="w-1/2 rounded-lg shadow-md">
+    `;
         } else {
           const error = await response.json();
           similarityDiv.innerHTML = `<span class='text-red-500 font-semibold'>Error:</span> ${error.detail}`;
