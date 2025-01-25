@@ -8,6 +8,7 @@ import numpy as np
 import os
 from fastapi import Request
 
+
 # Initialize FastAPI app
 app = FastAPI()
 UPLOAD_FOLDER = "./uploads"

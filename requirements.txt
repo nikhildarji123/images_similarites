@@ -1,0 +1,6 @@
+fastapi
+uvicorn[standard]
+face_recognition
+opencv-python-headless
+numpy
+jinja2
