@@ -13,6 +13,7 @@ from torchvision.models.detection import FasterRCNN
 from torchvision.models.detection.rpn import AnchorGenerator
 from torchvision.transforms import functional as F
 
+
 # Initialize FastAPI app
 app = FastAPI()
 UPLOAD_FOLDER = "./uploads"
