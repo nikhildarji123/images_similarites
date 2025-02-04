@@ -7,6 +7,11 @@ import face_recognition
 import numpy as np
 import os
 from fastapi import Request
+import torch
+import torchvision
+from torchvision.models.detection import FasterRCNN
+from torchvision.models.detection.rpn import AnchorGenerator
+from torchvision.transforms import functional as F
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -20,6 +25,14 @@ templates = Jinja2Templates(directory="templates")
 
 # Serve static files for outputs
 app.mount("/outputs", StaticFiles(directory=OUTPUT_FOLDER), name="outputs")
+
+# Load Faster R-CNN model for face detection
+def load_faster_rcnn_model():
+    model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=True)
+    model.eval()
+    return model
+
+faster_rcnn_model = load_faster_rcnn_model()
 
 # Standardize and resize image while maintaining aspect ratio
 def resize_and_align(image):
@@ -73,6 +86,26 @@ def extract_features(face_landmarks):
     }
     return features
 
+# Detect faces using Faster R-CNN
+def detect_faces_faster_rcnn(image, model):
+    image_tensor = F.to_tensor(image).unsqueeze(0)
+    with torch.no_grad():
+        predictions = model(image_tensor)
+    boxes = predictions[0]['boxes'].cpu().numpy()
+    scores = predictions[0]['scores'].cpu().numpy()
+    face_locations = []
+    for box, score in zip(boxes, scores):
+        if score > 0.5:  # Confidence threshold
+            top, left, bottom, right = box
+            face_locations.append((int(top), int(right), int(bottom), int(left)))
+    return face_locations
+
+# Enhance face detection for side-angle images
+def detect_faces_side_angle(image):
+    # Use face_recognition's CNN model for better side-angle detection
+    face_locations = face_recognition.face_locations(image, model="cnn")
+    return face_locations
+
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
@@ -102,12 +135,32 @@ async def upload(image1: UploadFile = File(...), image2: UploadFile = File(...))
         if not is_valid_image(img1_resized) or not is_valid_image(img2_resized):
             raise ValueError("One or both uploaded files are not valid images.")
 
-        # Get face encodings and landmarks
-        encodings1 = face_recognition.face_encodings(img1_resized)
-        encodings2 = face_recognition.face_encodings(img2_resized)
+        # Detect faces using Faster R-CNN and face_recognition's CNN model for side-angle images
+        face_locations1 = detect_faces_faster_rcnn(img1_resized, faster_rcnn_model)
+        face_locations2 = detect_faces_faster_rcnn(img2_resized, faster_rcnn_model)
 
-        landmarks1 = face_recognition.face_landmarks(img1_resized)
-        landmarks2 = face_recognition.face_landmarks(img2_resized)
+        # If no faces are detected, try the side-angle detection model
+        if len(face_locations1) == 0:
+            face_locations1 = detect_faces_side_angle(img1_resized)
+        if len(face_locations2) == 0:
+            face_locations2 = detect_faces_side_angle(img2_resized)
+
+        if len(face_locations1) == 0 or len(face_locations2) == 0:
+            raise ValueError("No faces found in one or both images.")
+
+        # Crop images to detected faces
+        top1, right1, bottom1, left1 = face_locations1[0]
+        top2, right2, bottom2, left2 = face_locations2[0]
+
+        face1 = img1_resized[top1:bottom1, left1:right1]
+        face2 = img2_resized[top2:bottom2, left2:right2]
+
+        # Get face encodings and landmarks
+        encodings1 = face_recognition.face_encodings(face1)
+        encodings2 = face_recognition.face_encodings(face2)
+
+        landmarks1 = face_recognition.face_landmarks(face1)
+        landmarks2 = face_recognition.face_landmarks(face2)
 
         if len(encodings1) == 0 or len(encodings2) == 0:
             raise ValueError("No faces found in one or both images.")
@@ -139,9 +192,6 @@ async def upload(image1: UploadFile = File(...), image2: UploadFile = File(...))
         overall_similarity = compute_feature_similarity(encodings1[0], encodings2[0])
 
         # Visualize features (bounding boxes around detected faces)
-        face_locations1 = face_recognition.face_locations(img1_resized)
-        face_locations2 = face_recognition.face_locations(img2_resized)
-
         output1_path = os.path.join(OUTPUT_FOLDER, "annotated1.jpg")
         output2_path = os.path.join(OUTPUT_FOLDER, "annotated2.jpg")
 
