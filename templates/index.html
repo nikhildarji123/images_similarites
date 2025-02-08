@@ -3,226 +3,277 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Facial Similarity Analysis</title>
+    <title>Face Similarity Checker</title>
     <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(to right, #e3ffe7, #d9e7ff);
-            color: #333;
-            margin: 0;
-            padding: 0;
-        }
-    
-        h1 {
-            text-align: center;
-            margin-top: 40px;
-            font-size: 3rem;
-            color: #2c7a7b;
-            text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.2);
-        }
-    
-        .container {
-            max-width: 800px;
-            margin: 30px auto;
-            background: #ffffff;
-            padding: 30px;
-            border-radius: 12px;
-            box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
-        }
-    
-        form {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-    
-        label {
-            font-size: 1.2rem;
-            color: #555;
-            font-weight: bold;
-            display: block;
-            margin-bottom: 8px;
-        }
-    
-        input[type="file"] {
-            font-size: 1rem;
-            padding: 12px;
-            border: 2px dashed #ddd;
-            border-radius: 8px;
-            background-color: #f9f9f9;
-            outline: none;
-            transition: border-color 0.3s, background-color 0.3s;
-        }
-    
-        input[type="file"]:hover, input[type="file"]:focus {
-            border-color: #2c7a7b;
-            background-color: #e6fffa;
-        }
-    
-        button {
-            padding: 15px 25px;
-            background: #2c7a7b;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 1.2rem;
-            cursor: pointer;
-            transition: background-color 0.3s, transform 0.2s;
-        }
-    
-        button:hover {
-            background-color: #285e61;
-            transform: translateY(-3px);
-            box-shadow: 0 5px 10px rgba(0, 0, 0, 0.2);
-        }
+        /* Global Styles */
+/* Global Styles */
+body {
+    font-family: 'Poppins', sans-serif;
+    margin: 0;
+    padding: 20px;
+    text-align: center;
+    background: linear-gradient(135deg, #1a2a6c, #b21f1f, #fdbb2d);
+    color: white;
+}
 
-        button:active {
-            transform: translateY(0);
-            box-shadow: none;
-        }
-    
-        .results {
-            margin-top: 40px;
-            padding: 20px;
-            background: #f7fafc;
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-        }
+/* Title Styling */
+h1 {
+    font-size: 36px;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 10px;
+    background: linear-gradient(to right, #ff7eb3, #ff758c);
+    border-radius: 10px;
+    display: inline-block;
+    box-shadow: 0 4px 10px rgba(255, 118, 138, 0.5);
+}
 
-        .error {
-            color: red;
-            font-weight: bold;
-        }
-        
-        ul {
-            list-style-type: none;
-            padding-left: 0;
-        }
+/* Container with Glassmorphism Effect */
+.container {
+    background: rgba(255, 255, 255, 0.15);
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0px 8px 32px rgba(0, 0, 0, 0.3);
+    max-width: 500px;
+    margin: auto;
+    backdrop-filter: blur(10px);
+    transition: transform 0.3s ease-in-out;
+}
 
-        ul li {
-            font-size: 1.1rem;
-            margin-bottom: 10px;
-        }
+.container:hover {
+    transform: scale(1.03);
+}
 
-        ul li::before {
-            content: '✔';
-            color: #2c7a7b;
-            margin-right: 8px;
-        }
+/* File Input Styling */
+input[type="file"] {
+    margin: 10px 0;
+    padding: 12px;
+    width: 100%;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    cursor: pointer;
+    outline: none;
+    transition: all 0.3s ease-in-out;
+}
 
-        #images {
-            display: flex;
-            gap: 20px;
-            justify-content: center;
-            margin-top: 20px;
-        }
+/* Custom File Upload Button */
+input[type="file"]::file-selector-button {
+    background: linear-gradient(135deg, #17ead9, #6078ea);
+    color: white;
+    border: none;
+    padding: 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: all 0.3s ease-in-out;
+}
 
-        #images img {
-            max-width: 45%;
-            border-radius: 12px;
-            box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
-            transition: transform 0.3s;
-        }
+input[type="file"]::file-selector-button:hover {
+    background: linear-gradient(135deg, #6078ea, #17ead9);
+    transform: scale(1.05);
+}
 
-        #images img:hover {
-            transform: scale(1.05);
-        }
-        #image img, #preview1, #preview2 {
-            max-width: 150px;
-            height: auto;
-            border-radius: 12px;
-            border: 2px solid #2c7a7b;
-            box-shadow: 0.8px 15px rgba(0, 0, 0, 0.2);
-            transition: transform 0.3s, box-shadow 0.3s;
-        }
-        #images img:hover, #preview1:hover, #preview2:hover {
-        transform: scale(1.1); /* Slight zoom on hover */
-        box-shadow: 0 12px 20px rgba(0, 0, 0, 0.3); /* More prominent shadow */
+/* Button Styling */
+button {
+    background: linear-gradient(135deg, #ff4e50, #fc913a);
+    color: white;
+    border: none;
+    padding: 12px 18px;
+    cursor: pointer;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: bold;
+    text-transform: uppercase;
+    transition: all 0.3s ease-in-out;
+    box-shadow: 0px 5px 15px rgba(255, 78, 80, 0.4);
+}
+
+button:hover {
+    background: linear-gradient(135deg, #fc913a, #ff4e50);
+    transform: scale(1.08);
+}
+
+/* Loading Text */
+#loading {
+    margin-top: 15px;
+    font-weight: bold;
+    color: #ffcc00;
+    font-size: 16px;
+}
+
+/* Result Section */
+#result {
+    margin-top: 20px;
+    text-align: left;
+    color: white;
+    font-size: 16px;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    box-shadow: 0px 4px 10px rgba(255, 255, 255, 0.2);
+}
+
+/* Image Preview */
+.images {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 15px;
+}
+
+.images img {
+    width: 220px;
+    height: auto;
+    margin: 10px;
+    border-radius: 10px;
+    border: 3px solid #6a11cb;
+    transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+    box-shadow: 0 0 10px rgba(106, 17, 203, 0.6);
+}
+
+.images img:hover {
+    transform: scale(1.08);
+    box-shadow: 0px 8px 20px rgba(106, 17, 203, 0.8);
+}
+
+/* Table Styling */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+th, td {
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 10px;
+    text-align: center;
+    color: white;
+}
+
+th {
+    background: linear-gradient(135deg, #1fa2ff, #12d8fa, #a6ffcb);
+}
+
+/* Responsive Design */
+@media (max-width: 600px) {
+    .container {
+        width: 90%;
+        padding: 20px;
     }
 
-    /* Responsive styling for previews */
-    @media (max-width: 768px) {
-        #images img, #preview1, #preview2 {
-            max-width: 100px; /* Reduce size on smaller screens */
-        }
+    .images img {
+        width: 180px;
     }
+}
+
+
+
     </style>
 </head>
 <body>
-   <div class="container">
-       <h1>Facial Similarity Analysis</h1>
-       <form id="uploadForm" enctype="multipart/form-data">
-            <label for="image1">Select First Image:</label>
-            <div style="display: flex; align-items: center; gap: 10px;">
-                <input type="file" id="image1" name="image1" accept="image/*" required>
-                <img id="preview1" alt="Preview 1" style="max-width: 100px; height: auto; border: 1px solid #ccc; border-radius: 8px; display: none;">
-            </div>
-            
-            <label for="image2">Select Second Image:</label>
-            <div style="display: flex; align-items: center; gap: 10px;">
-                <input type="file" id="image2" name="image2" accept="image/*" required>
-                <img id="preview2" alt="Preview 2" style="max-width: 100px; height: auto; border: 1px solid #ccc; border-radius: 8px; display: none;">
-            </div>
-           <button type="submit">Analyze</button>
-       </form>
-       
-       <div class="results">
-           <h2>Results</h2>
-           <div id="similarity"></div>
-           <div id="images"></div>
-       </div>
-   </div>
+    <h1>Face Similarity Checker</h1>
+    <div class="container">
+        <form id="uploadForm">
+            <input type="file" id="image1" accept="image/*" required><br>
+            <input type="file" id="image2" accept="image/*" required><br>
+            <button type="submit">Compare Faces</button>
+        </form>
+        <div id="loading" style="display: none;">Processing...</div>
+        <div id="result"></div>
+        <div class="images" id="annotatedImages"></div>
+    </div>
 
-   <script>
-         const showImagePreviewInline = (inputId, previewId) => {
-        const input = document.getElementById(inputId);
-        const preview = document.getElementById(previewId);
+    <script>
 
-        input.addEventListener("change", () => {
-            const file = input.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    preview.src = e.target.result; // Set the preview image source
-                    preview.style.display = "block"; // Make the image visible
-                };
-                reader.readAsDataURL(file);
+    document.getElementById("uploadForm").addEventListener("submit", async function(event) {
+        event.preventDefault();
+
+        const image1 = document.getElementById("image1").files[0];
+        const image2 = document.getElementById("image2").files[0];
+
+        if (!image1 || !image2) {
+            alert("Please select both images.");
+            return;
+        }
+
+        // Show image previews
+        const previewContainer = document.getElementById("annotatedImages");
+        previewContainer.innerHTML = `
+            <img src="${URL.createObjectURL(image1)}" alt="Selected Image 1">
+            <img src="${URL.createObjectURL(image2)}" alt="Selected Image 2">
+        `;
+
+        const formData = new FormData();
+        formData.append("image1", image1);
+        formData.append("image2", image2);
+
+        document.getElementById("loading").style.display = "block";
+        document.getElementById("result").innerHTML = "";
+
+        try {
+            const response = await fetch("/upload", {
+                method: "POST",
+                body: formData
+            });
+
+            const data = await response.json();
+            document.getElementById("loading").style.display = "none";
+
+            if (response.ok) {
+                let featureTable = `
+                    <h3>Similarity Result: ${data.similarity_result}</h3>
+                    <p><b>Similarity Score:</b> ${data.similarity_percentage}%</p>
+                    <p><b>DeepFace Match:</b> ${data.deepface_match}</p>
+                    <h4>Feature Comparison:</h4>
+                    <table>
+                        <tr>
+                            <th>Feature</th>
+                            <th>Match Score (0-100%)</th>
+                        </tr>`;
+
+                for (const [feature, score] of Object.entries(data.feature_similarities)) {
+                    featureTable += `
+                        <tr>
+                            <td>${feature.charAt(0).toUpperCase() + feature.slice(1)}</td>
+                            <td>${(score * 100).toFixed(2)}%</td>
+                        </tr>`;
+                }
+
+                featureTable += "</table>";
+                document.getElementById("result").innerHTML = featureTable;
+
+                // Replace previews with processed images
+                previewContainer.innerHTML = `
+                    <img src="/outputs/annotated1.jpg" alt="Processed Image 1">
+                    <img src="/outputs/annotated2.jpg" alt="Processed Image 2">
+                `;
             } else {
-                preview.style.display = "none"; // Hide preview if no file is selected
+                document.getElementById("result").innerHTML = `<p style="color:red;">Error: ${data.detail}</p>`;
             }
-        });
-    };
 
-    showImagePreviewInline("image1", "preview1");
-    showImagePreviewInline("image2", "preview2");
-       document.getElementById("uploadForm").onsubmit = async (e) => {
-           e.preventDefault();
-           const formData = new FormData(e.target);
-           const response = await fetch("/upload", {
-               method: "POST",
-               body: formData,
-           });
+        } catch (error) {
+            document.getElementById("loading").style.display = "none";
+            document.getElementById("result").innerHTML = `<p style="color:red;">Server Error: ${error.message}</p>`;
+        }
+    });
 
-           if (response.ok) {
-               const result = await response.json();
-               const similarityDiv = document.getElementById("similarity");
-               const imagesDiv = document.getElementById("images");
-               similarityDiv.innerHTML = `
-                   <p><strong>Accuracy:</strong> ${result.accuracy}%</p>
-                   <p><strong>Similarity Result:</strong> ${result.similarity_result}</p>
-                   <p><strong>Feature-Wise Similarities:</strong></p>
-                   <ul>${Object.entries(result.feature_similarities).map(([k,v]) => `<li>${k}: ${v}</li>`).join("")}</ul>
-               `;
-               imagesDiv.innerHTML = `
-                   <img src="/outputs/${result.annotated1}" alt="Annotated Image 1">
-                   <img src="/outputs/${result.annotated2}" alt="Annotated Image 2">
-               `;
-           } else {
-               const error = await response.json();
-               document.getElementById("similarity").innerHTML = `<span class='error'>Error:</span> ${error.detail}`;
-               document.getElementById("images").innerHTML = ''; // Clear images on error
-           }
-       };
-   </script>
+    // Show selected image previews immediately
+    function previewImages(event) {
+        const files = event.target.files;
+        if (files.length > 0) {
+            const preview = document.getElementById("annotatedImages");
+            preview.innerHTML = `<img src="${URL.createObjectURL(files[0])}" alt="Selected Image">`;
+        }
+    }
+
+    document.getElementById("image1").addEventListener("change", previewImages);
+    document.getElementById("image2").addEventListener("change", previewImages);
+    </script>
 </body>
 </html>
