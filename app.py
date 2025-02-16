@@ -39,11 +39,11 @@ def normalize_score(distance, min_val=0, max_val=0.6):
 
 # Draw arrows with different colors for each feature
 def draw_colored_arrows(image, landmarks, output_path):
-    thickness = 2
+    thickness = 5
     arrow_features = {
-        "eye_line": (landmarks["left_eye"][0], landmarks["right_eye"][-1], (255, 0, 0)),  # Blue for eyes
-        "nose_mouth": (landmarks["nose_bridge"][-1], landmarks["top_lip"][0], (0, 255, 0)),  # Green for nose-mouth
-        "eyebrows": (landmarks["left_eyebrow"][-1], landmarks["right_eyebrow"][0], (0, 0, 255)),  # Red for eyebrows
+        "eye_line": (landmarks["left_eye"][0], landmarks["right_eye"][-1], (255, 0, 0)),
+        "nose_mouth": (landmarks["nose_bridge"][-1], landmarks["top_lip"][0], (0, 255, 0)),
+        "eyebrows": (landmarks["left_eyebrow"][-1], landmarks["right_eyebrow"][0], (0, 0, 255)),
     }
 
     for key, (start, end, color) in arrow_features.items():
@@ -62,7 +62,20 @@ def extract_features(landmarks):
         "eyebrows": np.array([landmarks["left_eyebrow"], landmarks["right_eyebrow"]]),
     }
 
+# Side-angle detection
+def is_side_angle_face(landmarks):
+    nose_bridge = landmarks["nose_bridge"]
+    left_eye = landmarks["left_eye"]
+    right_eye = landmarks["right_eye"]
 
+    if nose_bridge and left_eye and right_eye:
+        nose_tip = nose_bridge[-1]
+        left_eye_x = np.mean([point[0] for point in left_eye])
+        right_eye_x = np.mean([point[0] for point in right_eye])
+
+        if nose_tip[0] < left_eye_x or nose_tip[0] > right_eye_x:
+            return True
+    return False
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
@@ -78,7 +91,6 @@ async def upload(image1: UploadFile = File(...), image2: UploadFile = File(...))
             f1.write(await image1.read())
             f2.write(await image2.read())
 
-
         # Load and resize images
         img1 = face_recognition.load_image_file(file1_path)
         img2 = face_recognition.load_image_file(file2_path)
@@ -91,24 +103,36 @@ async def upload(image1: UploadFile = File(...), image2: UploadFile = File(...))
         if not encodings1 or not encodings2:
             raise HTTPException(status_code=400, detail="No faces detected in one or both images.")
 
+        # Check for side-angle faces
+        if is_side_angle_face(landmarks1[0]) or is_side_angle_face(landmarks2[0]):
+            raise HTTPException(status_code=400, detail="Side-angle faces detected. Please use front-facing images for better accuracy.")
+
         # Extract facial features
         features1, features2 = extract_features(landmarks1[0]), extract_features(landmarks2[0])
 
         # Compute feature-wise similarity
-        weights = {"eyes": 0.4, "nose": 0.3, "mouth": 0.2, "jawline": 0.1, "eyebrows": 0.05}
-        feature_similarities = {feat: normalize_score(compute_similarity(features1[feat], features2[feat])) for feat in weights}
+        feature_similarities = {
+            feat: normalize_score(compute_similarity(features1[feat], features2[feat]))
+            for feat in features1
+        }
+
+        # Initialize similarity_percentage
+        similarity_percentage = 0
 
         # Compute overall similarity
         overall_sim = compute_similarity(encodings1[0], encodings2[0])
         similarity_percentage = round(100 * (1 - (overall_sim / 0.6)), 2)
         similarity_percentage = max(0, min(100, similarity_percentage))
 
-        # DeepFace verification
-        try:
-            deepface_result = DeepFace.verify(file1_path, file2_path, model_name="VGG-Face", enforce_detection=False)
-            deepface_match = deepface_result["verified"]
-        except Exception:
-            deepface_match = "Error in DeepFace"
+        # Overall similarity using multiple DeepFace models
+        models = ["VGG-Face", "Facenet", "ArcFace"]
+        deepface_results = {}
+        for model in models:
+            try:
+                result = DeepFace.verify(file1_path, file2_path, model_name=model, enforce_detection=False)
+                deepface_results[model] = result["verified"]
+            except Exception as e:
+                deepface_results[model] = f"Error: {str(e)}"
 
         # Annotate images with colored arrows
         output1_path = os.path.join(OUTPUT_FOLDER, "annotated1.jpg")
@@ -116,21 +140,19 @@ async def upload(image1: UploadFile = File(...), image2: UploadFile = File(...))
         draw_colored_arrows(img1.copy(), landmarks1[0], output1_path)
         draw_colored_arrows(img2.copy(), landmarks2[0], output2_path)
 
-        # Image URLs
         image1_url = f"/outputs/annotated1.jpg"
         image2_url = f"/outputs/annotated2.jpg"
 
-        # Determine similarity label
         similarity_result = "Highly Similar" if similarity_percentage >= 85 else (
-            "Similar" if similarity_percentage >= 50 else "Moderately Similar" if similarity_percentage >= 35 else "Not Similar"
+            "Similar" if similarity_percentage >= 50 
+            else "Moderately Similar" if similarity_percentage >= 35 else "Not Similar" 
         )
 
         return JSONResponse({
             "similarity_result": similarity_result,
             "similarity_percentage": similarity_percentage,
-            "overall_similarity_score": round(overall_sim, 4),
+            
             "feature_similarities": feature_similarities,
-            "deepface_match": deepface_match,
             "annotated_images": {
                 "image1_url": image1_url,
                 "image2_url": image2_url,
