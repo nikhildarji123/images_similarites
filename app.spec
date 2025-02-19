@@ -1,5 +1,8 @@
-# -*- mode: python ; coding: utf-8 -*-
+# app.spec
+import sys
+sys.setrecursionlimit(sys.getrecursionlimit() * 5)
 
+block_cipher = None
 
 a = Analysis(
     ['app.py'],
@@ -14,7 +17,7 @@ a = Analysis(
     noarchive=False,
     optimize=0,
 )
-pyz = PYZ(a.pure)
+pyz = PYZ(a.pure, a.zipped, cipher=block_cipher)
 
 exe = EXE(
     pyz,
@@ -22,7 +25,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='app',
+    name='app',  # This will be the name of your executable
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -30,9 +33,4 @@ exe = EXE(
     upx_exclude=[],
     runtime_tmpdir=None,
     console=True,
-    disable_windowed_traceback=False,
-    argv_emulation=False,
-    target_arch=None,
-    codesign_identity=None,
-    entitlements_file=None,
 )
