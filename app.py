@@ -8,36 +8,29 @@ import numpy as np
 import os
 from deepface import DeepFace
 
-# Initialize FastAPI app
 app = FastAPI()
 UPLOAD_FOLDER = "./uploads"
 OUTPUT_FOLDER = "./outputs"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
-# Set up Jinja2 templates
 templates = Jinja2Templates(directory="templates")
 
-# Serve static files for output images
 app.mount("/outputs", StaticFiles(directory=OUTPUT_FOLDER), name="outputs")
 
-# Resize images
 def resize_image(image, max_size=600):
     height, width = image.shape[:2]
     scale = max_size / max(height, width)
     return cv2.resize(image, (int(width * scale), int(height * scale))) if scale < 1 else image
 
-# Compute similarity score
 def compute_similarity(feature1, feature2):
     if np.linalg.norm(feature1) == 0 or np.linalg.norm(feature2) == 0:
-        return 1  # Maximum dissimilarity
+        return 1  
     return np.linalg.norm(feature1 / np.linalg.norm(feature1) - feature2 / np.linalg.norm(feature2))
 
-# Normalize similarity score
 def normalize_score(distance, min_val=0, max_val=0.6):
     return max(0, min(1, (max_val - distance) / (max_val - min_val)))
 
-# Draw arrows with different colors for each feature
 def draw_colored_arrows(image, landmarks, output_path):
     thickness = 5
     arrow_features = {
@@ -52,7 +45,6 @@ def draw_colored_arrows(image, landmarks, output_path):
 
     cv2.imwrite(output_path, image)
 
-# Extract features
 def extract_features(landmarks):
     return {
         "eyes": np.array([landmarks["left_eye"], landmarks["right_eye"]]),
@@ -62,7 +54,6 @@ def extract_features(landmarks):
         "eyebrows": np.array([landmarks["left_eyebrow"], landmarks["right_eyebrow"]]),
     }
 
-# Side-angle detection
 def is_side_angle_face(landmarks):
     nose_bridge = landmarks["nose_bridge"]
     left_eye = landmarks["left_eye"]
@@ -84,47 +75,37 @@ async def index(request: Request):
 @app.post("/upload")
 async def upload(image1: UploadFile = File(...), image2: UploadFile = File(...)):
     try:
-        # Save images
         file1_path = os.path.join(UPLOAD_FOLDER, image1.filename)
         file2_path = os.path.join(UPLOAD_FOLDER, image2.filename)
         with open(file1_path, "wb") as f1, open(file2_path, "wb") as f2:
             f1.write(await image1.read())
             f2.write(await image2.read())
-
-        # Load and resize images
         img1 = face_recognition.load_image_file(file1_path)
         img2 = face_recognition.load_image_file(file2_path)
         img1, img2 = resize_image(img1), resize_image(img2)
 
-        # Get face encodings and landmarks
         encodings1, encodings2 = face_recognition.face_encodings(img1), face_recognition.face_encodings(img2)
         landmarks1, landmarks2 = face_recognition.face_landmarks(img1), face_recognition.face_landmarks(img2)
 
         if not encodings1 or not encodings2:
             raise HTTPException(status_code=400, detail="No faces detected in one or both images.")
 
-        # Check for side-angle faces
         if is_side_angle_face(landmarks1[0]) or is_side_angle_face(landmarks2[0]):
             raise HTTPException(status_code=400, detail="Side-angle faces detected. Please use front-facing images for better accuracy.")
 
-        # Extract facial features
         features1, features2 = extract_features(landmarks1[0]), extract_features(landmarks2[0])
 
-        # Compute feature-wise similarity
         feature_similarities = {
             feat: normalize_score(compute_similarity(features1[feat], features2[feat]))
             for feat in features1
         }
 
-        # Initialize similarity_percentage
         similarity_percentage = 0
 
-        # Compute overall similarity
         overall_sim = compute_similarity(encodings1[0], encodings2[0])
         similarity_percentage = round(100 * (1 - (overall_sim / 0.6)), 2)
         similarity_percentage = max(0, min(100, similarity_percentage))
 
-        # Overall similarity using multiple DeepFace models
         models = ["VGG-Face", "Facenet", "ArcFace"]
         deepface_results = {}
         for model in models:
@@ -134,7 +115,6 @@ async def upload(image1: UploadFile = File(...), image2: UploadFile = File(...))
             except Exception as e:
                 deepface_results[model] = f"Error: {str(e)}"
 
-        # Annotate images with colored arrows
         output1_path = os.path.join(OUTPUT_FOLDER, "annotated1.jpg")
         output2_path = os.path.join(OUTPUT_FOLDER, "annotated2.jpg")
         draw_colored_arrows(img1.copy(), landmarks1[0], output1_path)

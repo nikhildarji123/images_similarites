@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Face Similarity Checker</title>
     <style>
-        /* Global Styles */
-/* Global Styles */
+
+
 body {
     font-family: 'Poppins', sans-serif;
     margin: 0;
@@ -16,7 +16,6 @@ body {
     color: white;
 }
 
-/* Title Styling */
 h1 {
     font-size: 36px;
     font-weight: bold;
@@ -29,7 +28,6 @@ h1 {
     box-shadow: 0 4px 10px rgba(255, 118, 138, 0.5);
 }
 
-/* Container with Glassmorphism Effect */
 .container {
     background: rgba(255, 255, 255, 0.15);
     padding: 25px;
@@ -44,8 +42,6 @@ h1 {
 .container:hover {
     transform: scale(1.03);
 }
-
-/* File Input Styling */
 input[type="file"] {
     margin: 10px 0;
     padding: 12px;
@@ -59,7 +55,7 @@ input[type="file"] {
     transition: all 0.3s ease-in-out;
 }
 
-/* Custom File Upload Button */
+
 input[type="file"]::file-selector-button {
     background: linear-gradient(135deg, #17ead9, #6078ea);
     color: white;
@@ -76,7 +72,6 @@ input[type="file"]::file-selector-button:hover {
     transform: scale(1.05);
 }
 
-/* Button Styling */
 button {
     background: linear-gradient(135deg, #ff4e50, #fc913a);
     color: white;
@@ -96,7 +91,6 @@ button:hover {
     transform: scale(1.08);
 }
 
-/* Loading Text */
 #loading {
     margin-top: 15px;
     font-weight: bold;
@@ -104,7 +98,6 @@ button:hover {
     font-size: 16px;
 }
 
-/* Result Section */
 #result {
     margin-top: 20px;
     text-align: left;
@@ -116,7 +109,6 @@ button:hover {
     box-shadow: 0px 4px 10px rgba(255, 255, 255, 0.2);
 }
 
-/* Image Preview */
 .images {
     display: flex;
     justify-content: center;
@@ -139,7 +131,6 @@ button:hover {
     box-shadow: 0px 8px 20px rgba(106, 17, 203, 0.8);
 }
 
-/* Table Styling */
 table {
     width: 100%;
     border-collapse: collapse;
@@ -160,7 +151,6 @@ th {
     background: linear-gradient(135deg, #1fa2ff, #12d8fa, #a6ffcb);
 }
 
-/* Responsive Design */
 @media (max-width: 600px) {
     .container {
         width: 90%;
@@ -202,7 +192,6 @@ th {
             return;
         }
 
-        // Show image previews
         const previewContainer = document.getElementById("annotatedImages");
         previewContainer.innerHTML = `
             <img src="${URL.createObjectURL(image1)}" alt="Selected Image 1">
@@ -247,8 +236,6 @@ th {
 
                 featureTable += "</table>";
                 document.getElementById("result").innerHTML = featureTable;
-
-                // Replace previews with processed images
                 previewContainer.innerHTML = `
                     <img src="/outputs/annotated1.jpg" alt="Processed Image 1">
                     <img src="/outputs/annotated2.jpg" alt="Processed Image 2">
@@ -263,7 +250,6 @@ th {
         }
     });
 
-    // Show selected image previews immediately
     function previewImages(event) {
         const files = event.target.files;
         if (files.length > 0) {
