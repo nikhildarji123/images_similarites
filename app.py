@@ -18,25 +18,23 @@ templates = Jinja2Templates(directory="templates")
 
 app.mount("/outputs", StaticFiles(directory=OUTPUT_FOLDER), name="outputs")
 
+# Function to resize images
 def resize_image(image, max_size=600):
     height, width = image.shape[:2]
     scale = max_size / max(height, width)
     return cv2.resize(image, (int(width * scale), int(height * scale))) if scale < 1 else image
 
-def compute_similarity(feature1, feature2):
-    if np.linalg.norm(feature1) == 0 or np.linalg.norm(feature2) == 0:
-        return 1  
-    return np.linalg.norm(feature1 / np.linalg.norm(feature1) - feature2 / np.linalg.norm(feature2))
+# Compute Cosine Similarity
+def cosine_similarity(vec1, vec2):
+    return np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2))
 
-def normalize_score(distance, min_val=0, max_val=0.6):
-    return max(0, min(1, (max_val - distance) / (max_val - min_val)))
-
+# Function to draw colored arrows on face landmarks
 def draw_colored_arrows(image, landmarks, output_path):
     thickness = 5
     arrow_features = {
-        "eye_line": (landmarks["left_eye"][0], landmarks["right_eye"][-1], (255, 0, 0)),
-        "nose_mouth": (landmarks["nose_bridge"][-1], landmarks["top_lip"][0], (0, 255, 0)),
-        "eyebrows": (landmarks["left_eyebrow"][-1], landmarks["right_eyebrow"][0], (0, 0, 255)),
+        "eye_line": (landmarks["left_eye"][0], landmarks["right_eye"][-1], (255, 0, 0)),  # Blue
+        "nose_mouth": (landmarks["nose_bridge"][-1], landmarks["top_lip"][0], (0, 255, 0)),  # Green
+        "eyebrows": (landmarks["left_eyebrow"][-1], landmarks["right_eyebrow"][0], (0, 0, 255)),  # Red
     }
 
     for key, (start, end, color) in arrow_features.items():
@@ -45,6 +43,7 @@ def draw_colored_arrows(image, landmarks, output_path):
 
     cv2.imwrite(output_path, image)
 
+# Extract facial features from landmarks
 def extract_features(landmarks):
     return {
         "eyes": np.array([landmarks["left_eye"], landmarks["right_eye"]]),
@@ -54,6 +53,7 @@ def extract_features(landmarks):
         "eyebrows": np.array([landmarks["left_eyebrow"], landmarks["right_eyebrow"]]),
     }
 
+# Detect if face is side-angled (for better accuracy)
 def is_side_angle_face(landmarks):
     nose_bridge = landmarks["nose_bridge"]
     left_eye = landmarks["left_eye"]
@@ -80,6 +80,7 @@ async def upload(image1: UploadFile = File(...), image2: UploadFile = File(...))
         with open(file1_path, "wb") as f1, open(file2_path, "wb") as f2:
             f1.write(await image1.read())
             f2.write(await image2.read())
+
         img1 = face_recognition.load_image_file(file1_path)
         img2 = face_recognition.load_image_file(file2_path)
         img1, img2 = resize_image(img1), resize_image(img2)
@@ -91,30 +92,37 @@ async def upload(image1: UploadFile = File(...), image2: UploadFile = File(...))
             raise HTTPException(status_code=400, detail="No faces detected in one or both images.")
 
         if is_side_angle_face(landmarks1[0]) or is_side_angle_face(landmarks2[0]):
-            raise HTTPException(status_code=400, detail="Side-angle faces detected. Please use front-facing images for better accuracy.")
+            raise HTTPException(status_code=400, detail="Side-angle faces detected. Please use front-facing images.")
 
         features1, features2 = extract_features(landmarks1[0]), extract_features(landmarks2[0])
 
+        # Compute feature similarities
         feature_similarities = {
-            feat: normalize_score(compute_similarity(features1[feat], features2[feat]))
+            feat: cosine_similarity(features1[feat].flatten(), features2[feat].flatten())
             for feat in features1
         }
 
-        similarity_percentage = 0
+        # Compute Face Encoding Similarity
+        overall_sim = cosine_similarity(encodings1[0], encodings2[0])
 
-        overall_sim = compute_similarity(encodings1[0], encodings2[0])
-        similarity_percentage = round(100 * (1 - (overall_sim / 0.6)), 2)
-        similarity_percentage = max(0, min(100, similarity_percentage))
-
+        # Run DeepFace for additional verification
         models = ["VGG-Face", "Facenet", "ArcFace"]
         deepface_results = {}
         for model in models:
             try:
                 result = DeepFace.verify(file1_path, file2_path, model_name=model, enforce_detection=False)
-                deepface_results[model] = result["verified"]
+                deepface_results[model] = result["distance"]
             except Exception as e:
-                deepface_results[model] = f"Error: {str(e)}"
+                deepface_results[model] = np.nan  # If error, ignore this model
 
+        deepface_avg = np.nanmean(list(deepface_results.values())) if deepface_results else 0
+
+        # Compute Final Weighted Similarity Score
+        feature_avg = np.mean(list(feature_similarities.values()))
+        final_similarity = (0.5 * overall_sim + 0.3 * feature_avg + 0.2 * (1 - deepface_avg)) * 100
+        final_similarity = max(0, min(100, final_similarity))  # Keep between 0-100
+
+        # Save annotated images
         output1_path = os.path.join(OUTPUT_FOLDER, "annotated1.jpg")
         output2_path = os.path.join(OUTPUT_FOLDER, "annotated2.jpg")
         draw_colored_arrows(img1.copy(), landmarks1[0], output1_path)
@@ -123,15 +131,17 @@ async def upload(image1: UploadFile = File(...), image2: UploadFile = File(...))
         image1_url = f"/outputs/annotated1.jpg"
         image2_url = f"/outputs/annotated2.jpg"
 
-        similarity_result = "Highly Similar" if similarity_percentage >= 85 else (
-            "Similar" if similarity_percentage >= 50 
-            else "Moderately Similar" if similarity_percentage >= 35 else "Not Similar" 
+        # Categorize similarity results
+        similarity_result = (
+            "Highly Similar" if final_similarity >= 85 else
+            "Similar" if final_similarity >= 60 else
+            "Moderately Similar" if final_similarity >= 40 else
+            "Not Similar"
         )
 
         return JSONResponse({
             "similarity_result": similarity_result,
-            "similarity_percentage": similarity_percentage,
-            
+            "similarity_percentage": final_similarity,
             "feature_similarities": feature_similarities,
             "annotated_images": {
                 "image1_url": image1_url,
