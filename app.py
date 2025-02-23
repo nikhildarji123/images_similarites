@@ -103,7 +103,7 @@ async def upload(image1: UploadFile = File(...), image2: UploadFile = File(...))
         similarity_percentage = 0
 
         overall_sim = compute_similarity(encodings1[0], encodings2[0])
-        similarity_percentage = round(100 * (1 - (overall_sim)), 2)
+        similarity_percentage = round(100 * (1 - (overall_sim / 0.6)), 2)
         similarity_percentage = max(0, min(100, similarity_percentage))
 
         models = ["VGG-Face", "Facenet", "ArcFace"]
@@ -123,7 +123,7 @@ async def upload(image1: UploadFile = File(...), image2: UploadFile = File(...))
         image1_url = f"/outputs/annotated1.jpg"
         image2_url = f"/outputs/annotated2.jpg"
 
-        similarity_result = "Highly Similar" if similarity_percentage >= 75 else (
+        similarity_result = "Highly Similar" if similarity_percentage >= 85 else (
             "Similar" if similarity_percentage >= 50 
             else "Moderately Similar" if similarity_percentage >= 35 else "Not Similar" 
         )
@@ -132,6 +132,7 @@ async def upload(image1: UploadFile = File(...), image2: UploadFile = File(...))
             "similarity_result": similarity_result,
             "similarity_percentage": similarity_percentage,
             
+            "feature_similarities": feature_similarities,
             "annotated_images": {
                 "image1_url": image1_url,
                 "image2_url": image2_url,
