@@ -99,17 +99,11 @@ async def upload(image1: UploadFile = File(...), image2: UploadFile = File(...))
             for feat in features1
         }
         
-        deepface_results = {}
-        models = ["VGG-Face", "Facenet", "ArcFace"]
-        for model in models:
-            try:
-                result = DeepFace.verify(file1_path, file2_path, model_name=model, enforce_detection=False)
-                deepface_results[model] = result["distance"]
-            except Exception as e:
-                deepface_results[model] = f"Error: {str(e)}"
+        # Calculate the average of feature match scores
+        feature_scores = list(feature_similarities.values())
+        feature_avg = np.mean(feature_scores) * 100  # Convert to percentage
         
-        deepface_avg = np.mean([deepface_results[m] for m in models if isinstance(deepface_results[m], (int, float))])
-        similarity_percentage = max(0, min(100, round((1 - deepface_avg) * 100, 2)))
+        similarity_percentage = max(0, min(100, round(feature_avg, 2)))
         
         output1_path = os.path.join(OUTPUT_FOLDER, "annotated1.jpg")
         output2_path = os.path.join(OUTPUT_FOLDER, "annotated2.jpg")
@@ -135,7 +129,6 @@ async def upload(image1: UploadFile = File(...), image2: UploadFile = File(...))
         })
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="127.0.0.1", port=8000)
