@@ -31,7 +31,6 @@ def compute_similarity(feature1, feature2):
         return 1  
     return np.linalg.norm(feature1 / np.linalg.norm(feature1) - feature2 / np.linalg.norm(feature2))
 
-
 def normalize_score(distance, min_val=0, max_val=0.6):
     return max(0, min(1, (max_val - distance) / (max_val - min_val)))
 
@@ -109,6 +108,7 @@ async def upload(image1: UploadFile = File(...), image2: UploadFile = File(...))
                 deepface_results[model] = f"Error: {str(e)}"
         
         deepface_avg = np.mean([deepface_results[m] for m in models if isinstance(deepface_results[m], (int, float))])
+        similarity_percentage = max(0, min(100, round((1 - deepface_avg) * 100, 2)))
         similarity_percentage = max(0, min(100, round((1 - deepface_avg) * 100, 2)))
         
         output1_path = os.path.join(OUTPUT_FOLDER, "annotated1.jpg")
