@@ -1,141 +1,185 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException, Request
-from fastapi.responses import JSONResponse, HTMLResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
+# Streamlit app.py
+import streamlit as st
 import cv2
-import face_recognition
+import dlib
 import numpy as np
-import os
+import matplotlib.pyplot as plt
 from deepface import DeepFace
-from scipy.spatial.distance import cosine
+import tempfile
+import os
 
-app = FastAPI()
-UPLOAD_FOLDER = "./uploads"
-OUTPUT_FOLDER = "./outputs"
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+# Initialize dlib models
+detector = dlib.get_frontal_face_detector()
+predictor = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
 
-templates = Jinja2Templates(directory="templates")
+# Function to extract facial features
+def get_facial_features(image_path):
+    img = cv2.imread(image_path)
+    if img is None:
+        return None, None, None
 
-app.mount("/outputs", StaticFiles(directory=OUTPUT_FOLDER), name="outputs")
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    faces = detector(gray)
+    if len(faces) == 0:
+        return None, None, None
 
-def resize_image(image, max_size=600):
-    height, width = image.shape[:2]
-    scale = max_size / max(height, width)
-    return cv2.resize(image, (int(width * scale), int(height * scale))) if scale < 1 else image
+    face = faces[0]
+    landmarks = predictor(gray, face)
 
-def compute_similarity(feature1, feature2):
-    feature1 = np.ravel(feature1)  # Flatten to 1D
-    feature2 = np.ravel(feature2) 
-    if np.linalg.norm(feature1) == 0 or np.linalg.norm(feature2) == 0:
-        return 1  
-    return np.linalg.norm(feature1 / np.linalg.norm(feature1) - feature2 / np.linalg.norm(feature2))
+    points = [(landmarks.part(i).x, landmarks.part(i).y) for i in range(68)]
 
-def normalize_score(distance, min_val=0, max_val=0.6):
-    return max(0, min(1, (max_val - distance) / (max_val - min_val)))
-
-def draw_colored_arrows(image, landmarks, output_path):
-    thickness = 5
-    arrow_features = {
-        "eye_line": (landmarks["left_eye"][0], landmarks["right_eye"][-1], (255, 0, 0)),
-        "nose_mouth": (landmarks["nose_bridge"][-1], landmarks["top_lip"][0], (0, 255, 0)),
-        "eyebrows": (landmarks["left_eyebrow"][-1], landmarks["right_eyebrow"][0], (0, 0, 255)),
-    }
-    for key, (start, end, color) in arrow_features.items():
-        if start is not None and end is not None:
-            cv2.arrowedLine(image, tuple(start), tuple(end), color, thickness, tipLength=0.2)
-    cv2.imwrite(output_path, image)
-
-def extract_features(landmarks):
-    return {
-        "eyes": np.array([landmarks["left_eye"], landmarks["right_eye"]]),
-        "nose": np.array(landmarks["nose_bridge"]),
-        "mouth": np.array(landmarks["top_lip"] + landmarks["bottom_lip"]),
-        "jawline": np.array(landmarks["chin"]),
-        "eyebrows": np.array([landmarks["left_eyebrow"], landmarks["right_eyebrow"]]),
+    features = {
+        "jawline": points[0:17],
+        "right_eyebrow": points[17:22],
+        "left_eyebrow": points[22:27],
+        "nose": points[27:36],
+        "right_eye": points[36:42],
+        "left_eye": points[42:48],
+        "mouth": points[48:68],
     }
 
-def is_side_angle_face(landmarks):
-    nose_bridge = landmarks["nose_bridge"]
-    left_eye = landmarks["left_eye"]
-    right_eye = landmarks["right_eye"]
-    if nose_bridge and left_eye and right_eye:
-        nose_tip = nose_bridge[-1]
-        left_eye_x = np.mean([point[0] for point in left_eye])
-        right_eye_x = np.mean([point[0] for point in right_eye])
-        if nose_tip[0] < left_eye_x or nose_tip[0] > right_eye_x:
-            return True
-    return False
+    return img, features, face
 
-@app.get("/", response_class=HTMLResponse)
-async def index(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+# Calculate feature ratios
+def calculate_feature_ratios(features, face):
+    x1, y1, x2, y2 = face.left(), face.top(), face.right(), face.bottom()
+    face_width = x2 - x1
+    face_height = y2 - y1
 
-@app.post("/upload")
-async def upload(image1: UploadFile = File(...), image2: UploadFile = File(...)):
-    try:
-        file1_path = os.path.join(UPLOAD_FOLDER, image1.filename)
-        file2_path = os.path.join(UPLOAD_FOLDER, image2.filename)
-        with open(file1_path, "wb") as f1, open(file2_path, "wb") as f2:
-            f1.write(await image1.read())
-            f2.write(await image2.read())
-        img1 = face_recognition.load_image_file(file1_path)
-        img2 = face_recognition.load_image_file(file2_path)
-        img1, img2 = resize_image(img1), resize_image(img2)
-        
-        encodings1, encodings2 = face_recognition.face_encodings(img1), face_recognition.face_encodings(img2)
-        landmarks1, landmarks2 = face_recognition.face_landmarks(img1), face_recognition.face_landmarks(img2)
-        
-        if not encodings1 or not encodings2:
-            raise HTTPException(status_code=400, detail="No faces detected in one or both images.")
-        
-        if is_side_angle_face(landmarks1[0]) or is_side_angle_face(landmarks2[0]):
-            raise HTTPException(status_code=400, detail="Side-angle faces detected. Please use front-facing images for better accuracy.")
-        
-        features1, features2 = extract_features(landmarks1[0]), extract_features(landmarks2[0])
-        feature_similarities = {
-            feat: normalize_score(compute_similarity(features1[feat], features2[feat]))
-            for feat in features1
-        }
-        
-        deepface_results = {}
-        models = ["VGG-Face", "Facenet", "ArcFace"]
-        for model in models:
-            try:
-                result = DeepFace.verify(file1_path, file2_path, model_name=model, enforce_detection=False)
-                deepface_results[model] = result["distance"]
-            except Exception as e:
-                deepface_results[model] = f"Error: {str(e)}"
-        
-        deepface_avg = np.mean([deepface_results[m] for m in models if isinstance(deepface_results[m], (int, float))])
-        similarity_percentage = max(0, min(100, round((1 - deepface_avg) * 100, 2)))
-        similarity_percentage = max(0, min(100, round((1 - deepface_avg) * 100, 2)))
-        
-        output1_path = os.path.join(OUTPUT_FOLDER, "annotated1.jpg")
-        output2_path = os.path.join(OUTPUT_FOLDER, "annotated2.jpg")
-        draw_colored_arrows(img1.copy(), landmarks1[0], output1_path)
-        draw_colored_arrows(img2.copy(), landmarks2[0], output2_path)
+    ratios = {}
+    for feature, points in features.items():
+        if feature in ["right_eye", "left_eye", "mouth"]:
+            area = cv2.contourArea(np.array(points, dtype=np.int32).reshape(-1, 1, 2))
+        else:
+            x, y, w, h = cv2.boundingRect(np.array(points, dtype=np.int32))
+            area = w * h
 
-        image1_url = f"/outputs/annotated1.jpg"
-        image2_url = f"/outputs/annotated2.jpg"
+        ratios[feature] = abs(area) / (face_width * face_height) if (face_width * face_height) != 0 else 0
 
-        similarity_result = "Highly Similar" if similarity_percentage >= 75 else (
-            "Similar" if similarity_percentage >= 50 
-            else "Moderately Similar" if similarity_percentage >= 35 else "Not Similar" 
-        )
+    return ratios
 
-        return JSONResponse({
-            "similarity_result": similarity_result,
-            "similarity_percentage": similarity_percentage,
-            "feature_similarities": feature_similarities,
-            "annotated_images":{
-                "image1": image1_url,
-                "image2": image2_url,
-            }
-        })
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+# Compare feature ratios
+def compare_feature_ratios(ratios1, ratios2):
+    similarity_scores = {}
+    for feature in ratios1.keys():
+        ratio1 = ratios1[feature]
+        ratio2 = ratios2[feature]
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+        if ratio1 is not None and ratio2 is not None:
+            max_ratio = max(ratio1, ratio2)
+            min_ratio = min(ratio1, ratio2)
+            similarity = (1 - abs(max_ratio - min_ratio)/max_ratio)*100 if max_ratio !=0 else 100
+            similarity_scores[feature] = round(similarity, 2)
+        else:
+            similarity_scores[feature] = None
+
+    return similarity_scores
+
+# Visualize faces with detected features
+def visualize_faces(img1, img2, features1, features2):
+    fig, axes = plt.subplots(1, 2, figsize=(12, 6))
+
+    for ax, img, features in zip(axes, [img1, img2], [features1, features2]):
+        for feature, points in features.items():
+            points = np.array(points, dtype=np.int32)
+            if feature in ["right_eye", "left_eye", "mouth"]:
+                cv2.fillPoly(img, [points], (0, 255, 0))
+            else:
+                for i in range(len(points)):
+                    start = points[i]
+                    end = points[(i + 1) % len(points)]
+                    cv2.line(img, tuple(start), tuple(end), (0, 255, 0), 2)
+        ax.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+        ax.axis('off')
+
+    return fig
+
+# Main Streamlit app
+st.title("Face Comparison Analysis")
+st.write("Upload two face images to compare using traditional feature analysis and deep learning")
+
+# File uploaders
+col1, col2 = st.columns(2)
+with col1:
+    image1 = st.file_uploader("Upload Image 1", type=["jpg", "jpeg", "png"])
+    if image1 is not None:
+        st.image(image1, caption="Uploaded Image 1", use_column_width=True)
+
+with col2:
+    image2 = st.file_uploader("Upload Image 2", type=["jpg", "jpeg", "png"])
+    if image2 is not None:
+        st.image(image2, caption="Uploaded Image 2", use_column_width=True)
+
+if st.button("Compare Faces"):
+    if image1 is None or image2 is None:
+        st.error("Please upload both images")
+    else:
+        # Save images to temporary files
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp1:
+            tmp1.write(image1.getvalue())
+            image1_path = tmp1.name
+            
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp2:
+            tmp2.write(image2.getvalue())
+            image2_path = tmp2.name
+
+        # Process with traditional method
+        st.header("Facial Feature Analysis")
+        img1, features1, face1 = get_facial_features(image1_path)
+        img2, features2, face2 = get_facial_features(image2_path)
+        
+        if img1 is None or img2 is None:
+            st.error("Error loading images. Please ensure valid image files are uploaded.")
+        elif features1 is None or features2 is None:
+            st.error("No faces detected in one or both images")
+        else:
+            ratios1 = calculate_feature_ratios(features1, face1)
+            ratios2 = calculate_feature_ratios(features2, face2)
+            similarity_scores = compare_feature_ratios(ratios1, ratios2)
+            
+            avg_similarity = np.mean([score for score in similarity_scores.values() if score is not None])
+            
+            st.write("### Facial Feature Similarity Scores:")
+            for feature, score in similarity_scores.items():
+                st.write(f"- {feature.capitalize()}: {score}%")
+                
+                # Display images with facial landmarks
+            st.write("#### Analyzed Images with Detected Features")
+            fig = visualize_faces(img1.copy(), img2.copy(), features1, features2)
+                
+        
+        # Process with DeepFace
+        st.header("Deep Learning Analysis")
+        try:
+            result = DeepFace.verify(image1_path, image2_path, 
+                                    model_name="Facenet512", 
+                                    enforce_detection=False)
+            
+            similarity = round(100 - (result['distance'] * 100), 2)
+            threshold = round(result['threshold'] * 100, 2)
+            
+            if similarity > 50:
+                st.write(f"Similarity Score: {similarity}%")
+                st.write(f"Threshold: {threshold}%")
+                
+                # Display images in results
+                st.write("#### Uploaded Images")
+                col_result1, col_result2 = st.columns(2)
+                with col_result1:
+                    st.image(image1, caption="Image 1", use_column_width=True)
+                with col_result2:
+                    st.image(image2, caption="Image 2", use_column_width=True)
+                
+                if similarity >= threshold:
+                    st.success("✅ Faces are verified to be the same person!")
+                else:
+                    st.error("❌ Faces are verified to be different people")
+            else:
+                st.warning("Deep learning similarity score is below 50%. No further details displayed.")
+                
+        except Exception as e:
+            st.error(f"DeepFace analysis failed: {str(e)}")
+        
+        # Cleanup temporary files
+        os.unlink(image1_path)
+        os.unlink(image2_path)
